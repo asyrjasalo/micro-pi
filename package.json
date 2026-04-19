@@ -1,0 +1,25 @@
+{
+  "name": "msbox",
+  "version": "0.1.0",
+  "description": "Run pi coding agent in microsandbox",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "msbox": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "tsc": "tsc --noEmit",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "format": "biome format --write"
+  },
+  "dependencies": {
+    "microsandbox": "latest"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
