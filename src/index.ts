@@ -25,8 +25,15 @@ export function termEnv(
 		COLORTERM: env.COLORTERM,
 		TERM_PROGRAM: env.TERM_PROGRAM,
 		TERM_PROGRAM_VERSION: env.TERM_PROGRAM_VERSION,
+		NO_COLOR: env.NO_COLOR,
+		FORCE_COLOR: env.FORCE_COLOR,
 		LANG: env.LANG,
 		LC_ALL: env.LC_ALL,
+		EMAIL: env.EMAIL,
+		GIT_AUTHOR_NAME: env.GIT_AUTHOR_NAME,
+		GIT_AUTHOR_EMAIL: env.GIT_AUTHOR_EMAIL,
+		GIT_COMMITTER_NAME: env.GIT_COMMITTER_NAME,
+		GIT_COMMITTER_EMAIL: env.GIT_COMMITTER_EMAIL,
 	}
 	const result: Record<string, string> = {}
 	for (const [k, v] of Object.entries(vars)) {
