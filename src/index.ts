@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import { existsSync } from "node:fs"
-import { fileURLToPath } from "node:url"
 import { resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 import type { Sandbox as SandboxInstance, SecretEntry } from "microsandbox"
 import {
 	install,
@@ -177,8 +177,9 @@ async function main(): Promise<void> {
 	}
 }
 
-const isMain =
-	process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.path)
+const entryPath = process.argv[1] && resolve(process.argv[1])
+const thisPath = resolve(fileURLToPath(import.meta.url))
+const isMain = entryPath === thisPath
 if (isMain) {
 	main().catch((err) => {
 		console.error("Fatal:", err)
