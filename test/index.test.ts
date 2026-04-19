@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test"
-import { buildSecrets, termEnv } from "../src/index.ts"
+import {
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { apiEnv, buildPiPatches, buildSecrets, termEnv } from "../src/index.ts"
 
 describe("termEnv", () => {
 	it("returns TERM with xterm-256color fallback when not set", () => {
@@ -51,50 +60,98 @@ describe("termEnv", () => {
 })
 
 describe("buildSecrets", () => {
-	it("returns empty array when no keys set", () => {
-		expect(buildSecrets({})).toHaveLength(0)
+	it("returns empty array", () => {
+		expect(buildSecrets({ ZAI_API_KEY: "test" })).toHaveLength(0)
+	})
+})
+
+describe("apiEnv", () => {
+	it("returns empty object when no keys set", () => {
+		expect(Object.keys(apiEnv({}))).toHaveLength(0)
 	})
 
-	it("builds ANTHROPIC_API_KEY secret", () => {
-		const secrets = buildSecrets({ ANTHROPIC_API_KEY: "sk-test" })
-		expect(secrets).toHaveLength(1)
-		expect(secrets[0].envVar).toBe("ANTHROPIC_API_KEY")
-		expect(secrets[0].value).toBe("sk-test")
-		expect(secrets[0].allowHosts).toEqual(["api.anthropic.com"])
+	it("includes ZAI_API_KEY when set", () => {
+		const env = apiEnv({ ZAI_API_KEY: "zai-test" })
+		expect(env.ZAI_API_KEY).toBe("zai-test")
 	})
 
-	it("builds ZAI_API_KEY secret", () => {
-		const secrets = buildSecrets({ ZAI_API_KEY: "zai-test" })
-		expect(secrets).toHaveLength(1)
-		expect(secrets[0].envVar).toBe("ZAI_API_KEY")
-		expect(secrets[0].allowHosts).toEqual(["api.z.ai", "open.bigmodel.cn"])
+	it("includes MINIMAX_API_KEY when set", () => {
+		const env = apiEnv({ MINIMAX_API_KEY: "mm-test" })
+		expect(env.MINIMAX_API_KEY).toBe("mm-test")
 	})
 
-	it("builds MINIMAX_API_KEY secret", () => {
-		const secrets = buildSecrets({ MINIMAX_API_KEY: "mm-test" })
-		expect(secrets).toHaveLength(1)
-		expect(secrets[0].envVar).toBe("MINIMAX_API_KEY")
-		expect(secrets[0].allowHosts).toEqual([
-			"api.minimax.io",
-			"api.minimax.chat",
-		])
-	})
-
-	it("builds all three secrets when all keys present", () => {
-		const secrets = buildSecrets({
-			ANTHROPIC_API_KEY: "sk-test",
+	it("includes both keys when both set", () => {
+		const env = apiEnv({
 			ZAI_API_KEY: "zai-test",
 			MINIMAX_API_KEY: "mm-test",
 		})
-		expect(secrets).toHaveLength(3)
+		expect(env.ZAI_API_KEY).toBe("zai-test")
+		expect(env.MINIMAX_API_KEY).toBe("mm-test")
 	})
 
 	it("ignores undefined keys", () => {
-		const secrets = buildSecrets({
-			ANTHROPIC_API_KEY: "sk-test",
-			ZAI_API_KEY: undefined,
-		})
-		expect(secrets).toHaveLength(1)
+		const env = apiEnv({ ZAI_API_KEY: "zai-test", MINIMAX_API_KEY: undefined })
+		expect(env.ZAI_API_KEY).toBe("zai-test")
+		expect("MINIMAX_API_KEY" in env).toBe(false)
+	})
+})
+
+describe("buildPiPatches", () => {
+	it("returns empty array when ~/.pi/agent does not exist", () => {
+		expect(buildPiPatches("/nonexistent-path")).toHaveLength(0)
+	})
+
+	it("creates guest .pi and .pi/agent dirs", () => {
+		const tmp = mkdtempSync(join(tmpdir(), "msbox-test-"))
+		mkdirSync(join(tmp, ".pi/agent"), { recursive: true })
+		writeFileSync(join(tmp, ".pi/agent/settings.json"), "{}")
+		const patches = buildPiPatches(tmp)
+		expect(patches[0].kind).toBe("mkdir")
+		expect(patches[0].path).toContain(".pi")
+		expect(patches[1].kind).toBe("mkdir")
+		expect(patches[1].path).toContain("agent")
+	})
+
+	it("dereferences symlinks", () => {
+		const tmp = mkdtempSync(join(tmpdir(), "msbox-test-"))
+		mkdirSync(join(tmp, ".pi/agent"), { recursive: true })
+		mkdirSync(join(tmp, "real-config"), { recursive: true })
+		writeFileSync(join(tmp, "real-config/settings.json"), '{"key": true}')
+		symlinkSync(
+			join(tmp, "real-config/settings.json"),
+			join(tmp, ".pi/agent/settings.json"),
+		)
+		const patches = buildPiPatches(tmp)
+		const copy = patches.find((p) => p.dst?.includes("settings.json"))
+		expect(copy).toBeDefined()
+		expect(copy?.src).toBe(realpathSync(join(tmp, "real-config/settings.json")))
+	})
+
+	it("copies directories", () => {
+		const tmp = mkdtempSync(join(tmpdir(), "msbox-test-"))
+		mkdirSync(join(tmp, ".pi/agent/skills/my-skill"), { recursive: true })
+		writeFileSync(
+			join(tmp, ".pi/agent/skills/my-skill/instructions.md"),
+			"do stuff",
+		)
+		const patches = buildPiPatches(tmp)
+		const dirPatch = patches.find((p) => p.dst?.includes("skills"))
+		expect(dirPatch).toBeDefined()
+		expect(dirPatch?.kind).toBe("copyDir")
+	})
+
+	it("excludes OS-specific entries", () => {
+		const tmp = mkdtempSync(join(tmpdir(), "msbox-test-"))
+		mkdirSync(join(tmp, ".pi/agent/sessions"), { recursive: true })
+		mkdirSync(join(tmp, ".pi/agent/git"), { recursive: true })
+		writeFileSync(join(tmp, ".pi/agent/mcp-cache.json"), "{}")
+		writeFileSync(join(tmp, ".pi/agent/settings.json"), "{}")
+		const patches = buildPiPatches(tmp)
+		const dsts = patches.map((p) => p.dst).filter(Boolean)
+		for (const excluded of ["sessions", "git", "mcp-cache.json"]) {
+			expect(dsts.some((d) => d?.includes(excluded))).toBe(false)
+		}
+		expect(dsts.some((d) => d?.includes("settings.json"))).toBe(true)
 	})
 })
 

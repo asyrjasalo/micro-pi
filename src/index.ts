@@ -1,21 +1,30 @@
 #!/usr/bin/env node
 
-import { existsSync } from "node:fs"
-import { resolve } from "node:path"
+import { existsSync, readdirSync, realpathSync, statSync } from "node:fs"
+import { homedir } from "node:os"
+import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import type { Sandbox as SandboxInstance, SecretEntry } from "microsandbox"
+import type {
+	PatchConfig,
+	Sandbox as SandboxInstance,
+	SecretEntry,
+} from "microsandbox"
 import {
 	install,
 	isInstalled,
 	Mount,
 	NetworkPolicy,
+	Patch,
 	Sandbox,
-	Secret,
 } from "microsandbox"
 
 export const SANDBOX_NAME = "pi-coding-agent"
 export const SANDBOX_IMAGE = "node:24-slim"
 export const GUEST_WORKDIR = "/workspace"
+export const GUEST_HOME = "/"
+export const PI_AGENT_REL = ".pi/agent"
+
+export const PI_EXCLUDE = new Set(["sessions", "git", "mcp-cache.json"])
 
 export function termEnv(
 	env: Record<string, string | undefined> = process.env,
@@ -34,43 +43,65 @@ export function termEnv(
 		GIT_AUTHOR_EMAIL: env.GIT_AUTHOR_EMAIL,
 		GIT_COMMITTER_NAME: env.GIT_COMMITTER_NAME,
 		GIT_COMMITTER_EMAIL: env.GIT_COMMITTER_EMAIL,
+		PI_RUN_CODE_UNSANDBOXED: "1",
 	}
 	const result: Record<string, string> = {}
 	for (const [k, v] of Object.entries(vars)) {
-		if (v) result[k] = v
+		if (v && /^[\x20-\x7E]*$/.test(v)) result[k] = v
 	}
 	return result
 }
 
 export function buildSecrets(
-	env: Record<string, string | undefined>,
+	_env: Record<string, string | undefined>,
 ): SecretEntry[] {
-	const secrets: SecretEntry[] = []
-	if (env.ANTHROPIC_API_KEY) {
-		secrets.push(
-			Secret.env("ANTHROPIC_API_KEY", {
-				value: env.ANTHROPIC_API_KEY,
-				allowHosts: ["api.anthropic.com"],
-			}),
-		)
+	return []
+}
+
+export function apiEnv(
+	env: Record<string, string | undefined> = process.env,
+): Record<string, string> {
+	const result: Record<string, string> = {}
+	if (env.ZAI_API_KEY) result.ZAI_API_KEY = env.ZAI_API_KEY
+	if (env.MINIMAX_API_KEY) result.MINIMAX_API_KEY = env.MINIMAX_API_KEY
+	return result
+}
+
+export const PI_ROOT_EXCLUDE = new Set(["agent"])
+
+export function buildPiPatches(hostHome: string = homedir()): PatchConfig[] {
+	const piRoot = join(hostHome, ".pi")
+	if (!existsSync(piRoot)) return []
+
+	const guestPiRoot = join(GUEST_HOME, ".pi")
+	const guestAgentDir = join(guestPiRoot, "agent")
+	const patches: PatchConfig[] = [Patch.mkdir(guestPiRoot)]
+
+	// Copy root-level ~/.pi/ files (e.g. web-search.json), skip dirs like agent/
+	const piDir = join(piRoot, "agent")
+	if (existsSync(piDir)) {
+		patches.push(Patch.mkdir(guestAgentDir))
+		for (const entry of readdirSync(piDir, { withFileTypes: true })) {
+			if (PI_EXCLUDE.has(entry.name)) continue
+			const realPath = realpathSync(join(piDir, entry.name))
+			const guestPath = join(guestAgentDir, entry.name)
+			if (statSync(realPath).isDirectory()) {
+				patches.push(Patch.copyDir(realPath, guestPath))
+			} else {
+				patches.push(Patch.copyFile(realPath, guestPath))
+			}
+		}
 	}
-	if (env.ZAI_API_KEY) {
-		secrets.push(
-			Secret.env("ZAI_API_KEY", {
-				value: env.ZAI_API_KEY,
-				allowHosts: ["api.z.ai", "open.bigmodel.cn"],
-			}),
-		)
+
+	for (const entry of readdirSync(piRoot, { withFileTypes: true })) {
+		if (PI_ROOT_EXCLUDE.has(entry.name)) continue
+		if (!entry.isFile() && !entry.isSymbolicLink()) continue
+		const realPath = realpathSync(join(piRoot, entry.name))
+		const guestPath = join(guestPiRoot, entry.name)
+		patches.push(Patch.copyFile(realPath, guestPath))
 	}
-	if (env.MINIMAX_API_KEY) {
-		secrets.push(
-			Secret.env("MINIMAX_API_KEY", {
-				value: env.MINIMAX_API_KEY,
-				allowHosts: ["api.minimax.io", "api.minimax.chat"],
-			}),
-		)
-	}
-	return secrets
+
+	return patches
 }
 
 export interface GetOrCreateResult {
@@ -83,6 +114,8 @@ export async function getOrCreateSandbox(
 	image: string,
 	projectDir: string,
 	secrets: SecretEntry[],
+	patches: PatchConfig[] = [],
+	env: Record<string, string> = {},
 ): Promise<GetOrCreateResult> {
 	try {
 		const handle = await Sandbox.get(name)
@@ -99,8 +132,9 @@ export async function getOrCreateSandbox(
 			workdir: GUEST_WORKDIR,
 			volumes: { [GUEST_WORKDIR]: Mount.bind(projectDir) },
 			secrets,
+			patches,
 			network: NetworkPolicy.allowAll(),
-			env: termEnv(),
+			env,
 			quietLogs: true,
 		})
 		return { sb, reused: false }
@@ -116,38 +150,75 @@ async function main(): Promise<void> {
 	}
 
 	if (!isInstalled()) {
-		console.error("Installing microsandbox runtime...")
+		console.info("Installing microsandbox runtime...")
 		await install()
 	}
 
-	const apiKey = process.env.ANTHROPIC_API_KEY
 	const zaiApiKey = process.env.ZAI_API_KEY
 	const minimaxApiKey = process.env.MINIMAX_API_KEY
 
-	if (!apiKey && !zaiApiKey && !minimaxApiKey) {
+	if (!zaiApiKey && !minimaxApiKey) {
 		console.error(
-			"At least one API key required: ANTHROPIC_API_KEY, ZAI_API_KEY, or MINIMAX_API_KEY.",
+			"At least one API key required: ZAI_API_KEY or MINIMAX_API_KEY.",
 		)
 		process.exit(1)
 	}
 
 	const secrets = buildSecrets(process.env)
+	const patches = buildPiPatches()
+	const envVars = { ...termEnv(), ...apiEnv() }
 
 	const { sb, reused } = await getOrCreateSandbox(
 		SANDBOX_NAME,
 		SANDBOX_IMAGE,
 		projectDir,
 		secrets,
+		patches,
+		envVars,
 	)
 
 	if (reused) {
-		console.error(`Reusing existing sandbox "${SANDBOX_NAME}"...`)
+		console.info(`Reusing existing sandbox "${SANDBOX_NAME}"...`)
 	}
 
 	try {
-		// Install pi coding agent (only on fresh sandbox)
 		if (!reused) {
-			console.error("Installing pi coding agent...")
+			console.info("Creating fresh sandbox...")
+			console.info("Installing git...")
+			const updateResult = await sb.exec("apt-get", ["update"])
+			if (!updateResult.success) {
+				console.error("Failed to update packages:")
+				console.error(updateResult.stderr())
+				await sb.kill()
+				process.exit(1)
+			}
+
+			const gitResult = await sb.exec("apt-get", [
+				"install",
+				"-y",
+				"git",
+				"ca-certificates",
+				"curl",
+				"fd-find",
+				"ripgrep",
+			])
+			if (!gitResult.success) {
+				console.error("Failed to install git:")
+				console.error(gitResult.stderr())
+				await sb.kill()
+				process.exit(1)
+			}
+
+			console.info("Installing rtk...")
+			const rtkResult = await sb.shell(
+				"curl -fsSL https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz -o /tmp/rtk.tar.gz && tar xzf /tmp/rtk.tar.gz -C /usr/local/bin && rm /tmp/rtk.tar.gz",
+			)
+			if (!rtkResult.success) {
+				console.error("Failed to install rtk:")
+				console.error(rtkResult.stderr())
+			}
+
+			console.info("Installing pi coding agent...")
 			const installResult = await sb.exec("npm", [
 				"install",
 				"-g",
@@ -159,14 +230,16 @@ async function main(): Promise<void> {
 				await sb.kill()
 				process.exit(1)
 			}
+
+			console.info("Updating pi packages...")
+			await sb.exec("pi", ["update"])
 		}
 
-		// Hand over terminal to pi — user interacts directly
-		console.error("Starting pi coding agent (Ctrl+] to detach)...\n")
+		console.info("Starting pi coding agent (Ctrl+] to detach)...\n")
 		const exitCode = await sb.attachWithConfig({
 			cmd: "pi",
 			cwd: GUEST_WORKDIR,
-			env: termEnv(),
+			env: envVars,
 		})
 
 		process.exit(exitCode)
