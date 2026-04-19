@@ -138,32 +138,20 @@ export async function getOrCreateSandbox(
 		const sb = await Sandbox.start(name)
 		return { sb, reused: true }
 	} catch {
-		try {
-			const sb = await Sandbox.create({
-				name,
-				image,
-				cpus: 2,
-				memoryMib: 2048,
-				workdir: GUEST_WORKDIR,
-				volumes: { [GUEST_WORKDIR]: Mount.bind(projectDir) },
-				secrets,
-				patches,
-				network: NetworkPolicy.allowAll(),
-				env,
-				quietLogs: true,
-			})
-			return { sb, reused: false }
-		} catch (createErr) {
-			// 4. "already exists" — another process won the race, retry connect
-			if (
-				createErr instanceof Error &&
-				createErr.message.includes("already exists")
-			) {
-				const retry = await tryConnectExisting(name)
-				if (retry) return retry
-			}
-			throw createErr
-		}
+		const sb = await Sandbox.create({
+			name,
+			image,
+			cpus: 2,
+			memoryMib: 2048,
+			workdir: GUEST_WORKDIR,
+			volumes: { [GUEST_WORKDIR]: Mount.bind(projectDir) },
+			secrets,
+			patches,
+			network: NetworkPolicy.allowAll(),
+			env,
+			quietLogs: true,
+		})
+		return { sb, reused: false }
 	}
 }
 
@@ -210,11 +198,21 @@ async function main(): Promise<void> {
 	try {
 		if (!reused) {
 			console.info("Creating fresh sandbox...")
-			console.info("Installing git...")
-			const setupResult = await sb.shell(
-				"apt-get update && apt-get install -y git ca-certificates curl fd-find ripgrep",
+			console.info("Upgrading glibc from trixie...")
+			const glibcResult = await sb.shell(
+				"echo 'deb http://deb.debian.org/debian trixie main' > /etc/apt/sources.list.d/trixie.list && apt-get update -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/trixie.list -o Dir::Etc::sourceparts=/dev/null && apt-get install -y -t trixie libc6",
 			)
-			console.info(setupResult.stderr())
+			if (!glibcResult.success) {
+				console.error("Failed to upgrade glibc:")
+				console.error(glibcResult.stderr())
+				await sb.kill()
+				process.exit(1)
+			}
+
+			console.info("Installing packages...")
+			const setupResult = await sb.shell(
+				"apt-get update && apt-get install -y git ca-certificates curl fd-find ripgrep locales && sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8",
+			)
 			if (!setupResult.success) {
 				console.error("Failed to install packages:")
 				console.error(setupResult.stderr())
@@ -226,8 +224,6 @@ async function main(): Promise<void> {
 			const rtkResult = await sb.shell(
 				"curl -fsSL --max-time 120 https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz -o /tmp/rtk.tar.gz && tar xzf /tmp/rtk.tar.gz -C /usr/local/bin && rm /tmp/rtk.tar.gz",
 			)
-			console.info(rtkResult.stdout())
-			console.info(rtkResult.stderr())
 			if (!rtkResult.success) {
 				console.error("Failed to install rtk:")
 				console.error(rtkResult.stderr())

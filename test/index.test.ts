@@ -164,11 +164,13 @@ describe("getOrCreateSandbox", () => {
 	}
 
 	const connectFn = mock(() => Promise.resolve(fakeSandbox))
+	const handleStartFn = mock(() => Promise.resolve())
 	const startFn = mock(() => Promise.resolve(fakeSandbox))
 	const createFn = mock(() => Promise.resolve(fakeSandbox))
 
 	beforeEach(() => {
 		connectFn.mockClear()
+		handleStartFn.mockClear()
 		startFn.mockClear()
 		createFn.mockClear()
 	})
@@ -178,15 +180,12 @@ describe("getOrCreateSandbox", () => {
 			Promise.resolve({
 				status: "running",
 				connect: connectFn,
-				start: startFn,
+				start: handleStartFn,
 			}),
 		)
 
 		mock.module("microsandbox", () => ({
-			Sandbox: { get: getFn, create: createFn },
-			Secret: {
-				env: (k: string, v: Record<string, string>) => ({ envVar: k, ...v }),
-			},
+			Sandbox: { get: getFn, start: startFn, create: createFn },
 			NetworkPolicy: { allowAll: () => ({}) },
 			Mount: { bind: (p: string) => p },
 		}))
@@ -203,29 +202,28 @@ describe("getOrCreateSandbox", () => {
 
 		expect(result.reused).toBe(true)
 		expect(connectFn).toHaveBeenCalled()
+		expect(handleStartFn).not.toHaveBeenCalled()
 		expect(startFn).not.toHaveBeenCalled()
+		expect(createFn).not.toHaveBeenCalled()
 	})
 
-	it("starts stopped sandbox", async () => {
+	it("starts stopped sandbox via get", async () => {
 		const getFn = mock(() =>
 			Promise.resolve({
 				status: "stopped",
 				connect: connectFn,
-				start: startFn,
+				start: handleStartFn,
 			}),
 		)
 
 		mock.module("microsandbox", () => ({
-			Sandbox: { get: getFn, create: createFn },
-			Secret: {
-				env: (k: string, v: Record<string, string>) => ({ envVar: k, ...v }),
-			},
+			Sandbox: { get: getFn, start: startFn, create: createFn },
 			NetworkPolicy: { allowAll: () => ({}) },
 			Mount: { bind: (p: string) => p },
 		}))
 
 		const { getOrCreateSandbox, SANDBOX_NAME, SANDBOX_IMAGE } = await import(
-			"../src/index.ts?t=start"
+			"../src/index.ts?t=start-get"
 		)
 		const result = await getOrCreateSandbox(
 			SANDBOX_NAME,
@@ -235,21 +233,47 @@ describe("getOrCreateSandbox", () => {
 		)
 
 		expect(result.reused).toBe(true)
-		expect(startFn).toHaveBeenCalled()
+		expect(handleStartFn).toHaveBeenCalled()
 		expect(connectFn).toHaveBeenCalled()
+		expect(startFn).not.toHaveBeenCalled()
 	})
 
-	it("creates new sandbox when get throws", async () => {
+	it("starts stopped sandbox via Sandbox.start when get throws", async () => {
 		const getFn = mock(() => Promise.reject(new Error("not found")))
 
 		mock.module("microsandbox", () => ({
-			Sandbox: { get: getFn, create: createFn },
-			Secret: {
-				env: (k: string, v: Record<string, string>) => ({ envVar: k, ...v }),
-			},
+			Sandbox: { get: getFn, start: startFn, create: createFn },
 			NetworkPolicy: { allowAll: () => ({}) },
 			Mount: { bind: (p: string) => p },
 		}))
+
+		const { getOrCreateSandbox, SANDBOX_NAME, SANDBOX_IMAGE } = await import(
+			"../src/index.ts?t=start-fallback"
+		)
+		const result = await getOrCreateSandbox(
+			SANDBOX_NAME,
+			SANDBOX_IMAGE,
+			"/tmp",
+			[],
+		)
+
+		expect(result.reused).toBe(true)
+		expect(startFn).toHaveBeenCalledWith(SANDBOX_NAME)
+		expect(createFn).not.toHaveBeenCalled()
+	})
+
+	it("creates new sandbox when get and start both throw", async () => {
+		const getFn = mock(() => Promise.reject(new Error("not found")))
+
+		mock.module("microsandbox", () => ({
+			Sandbox: { get: getFn, start: startFn, create: createFn },
+			NetworkPolicy: { allowAll: () => ({}) },
+			Mount: { bind: (p: string) => p },
+		}))
+
+		startFn.mockImplementationOnce(() =>
+			Promise.reject(new Error("no sandbox")),
+		)
 
 		const { getOrCreateSandbox, SANDBOX_NAME, SANDBOX_IMAGE } = await import(
 			"../src/index.ts?t=create"
@@ -263,5 +287,29 @@ describe("getOrCreateSandbox", () => {
 
 		expect(result.reused).toBe(false)
 		expect(createFn).toHaveBeenCalled()
+	})
+
+	it("throws create error when sandbox does not exist", async () => {
+		const getFn = mock(() => Promise.reject(new Error("not found")))
+		const createErr = new Error("image pull failed")
+
+		mock.module("microsandbox", () => ({
+			Sandbox: { get: getFn, start: startFn, create: createFn },
+			NetworkPolicy: { allowAll: () => ({}) },
+			Mount: { bind: (p: string) => p },
+		}))
+
+		startFn.mockImplementationOnce(() =>
+			Promise.reject(new Error("no sandbox")),
+		)
+		createFn.mockImplementationOnce(() => Promise.reject(createErr))
+
+		const { getOrCreateSandbox, SANDBOX_NAME, SANDBOX_IMAGE } = await import(
+			"../src/index.ts?t=create-err"
+		)
+
+		expect(
+			getOrCreateSandbox(SANDBOX_NAME, SANDBOX_IMAGE, "/tmp", []),
+		).rejects.toThrow("image pull failed")
 	})
 })
