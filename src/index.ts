@@ -109,6 +109,20 @@ export interface GetOrCreateResult {
 	reused: boolean
 }
 
+async function tryConnectExisting(
+	name: string,
+): Promise<GetOrCreateResult | null> {
+	try {
+		const handle = await Sandbox.get(name)
+		if (handle.status === "stopped") {
+			await handle.start()
+		}
+		return { sb: await handle.connect(), reused: true }
+	} catch {
+		return null
+	}
+}
+
 export async function getOrCreateSandbox(
 	name: string,
 	image: string,
@@ -117,27 +131,39 @@ export async function getOrCreateSandbox(
 	patches: PatchConfig[] = [],
 	env: Record<string, string> = {},
 ): Promise<GetOrCreateResult> {
+	const existing = await tryConnectExisting(name)
+	if (existing) return existing
+
 	try {
-		const handle = await Sandbox.get(name)
-		if (handle.status === "stopped") {
-			await handle.start()
-		}
-		return { sb: await handle.connect(), reused: true }
+		const sb = await Sandbox.start(name)
+		return { sb, reused: true }
 	} catch {
-		const sb = await Sandbox.create({
-			name,
-			image,
-			cpus: 2,
-			memoryMib: 2048,
-			workdir: GUEST_WORKDIR,
-			volumes: { [GUEST_WORKDIR]: Mount.bind(projectDir) },
-			secrets,
-			patches,
-			network: NetworkPolicy.allowAll(),
-			env,
-			quietLogs: true,
-		})
-		return { sb, reused: false }
+		try {
+			const sb = await Sandbox.create({
+				name,
+				image,
+				cpus: 2,
+				memoryMib: 2048,
+				workdir: GUEST_WORKDIR,
+				volumes: { [GUEST_WORKDIR]: Mount.bind(projectDir) },
+				secrets,
+				patches,
+				network: NetworkPolicy.allowAll(),
+				env,
+				quietLogs: true,
+			})
+			return { sb, reused: false }
+		} catch (createErr) {
+			// 4. "already exists" — another process won the race, retry connect
+			if (
+				createErr instanceof Error &&
+				createErr.message.includes("already exists")
+			) {
+				const retry = await tryConnectExisting(name)
+				if (retry) return retry
+			}
+			throw createErr
+		}
 	}
 }
 
@@ -185,36 +211,22 @@ async function main(): Promise<void> {
 		if (!reused) {
 			console.info("Creating fresh sandbox...")
 			console.info("Installing git...")
-			const updateResult = await sb.exec("apt-get", ["update"])
-			console.info(updateResult.stderr())
-			if (!updateResult.success) {
-				console.error("Failed to update packages:")
-				console.error(updateResult.stderr())
-				await sb.kill()
-				process.exit(1)
-			}
-
-			const gitResult = await sb.exec("apt-get", [
-				"install",
-				"-y",
-				"git",
-				"ca-certificates",
-				"curl",
-				"fd-find",
-				"ripgrep",
-			])
-			console.info(gitResult.stderr())
-			if (!gitResult.success) {
-				console.error("Failed to install git:")
-				console.error(gitResult.stderr())
+			const setupResult = await sb.shell(
+				"apt-get update && apt-get install -y git ca-certificates curl fd-find ripgrep",
+			)
+			console.info(setupResult.stderr())
+			if (!setupResult.success) {
+				console.error("Failed to install packages:")
+				console.error(setupResult.stderr())
 				await sb.kill()
 				process.exit(1)
 			}
 
 			console.info("Installing rtk...")
 			const rtkResult = await sb.shell(
-				"curl -fsSL https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz -o /tmp/rtk.tar.gz && tar xzf /tmp/rtk.tar.gz -C /usr/local/bin && rm /tmp/rtk.tar.gz",
+				"curl -fsSL --max-time 120 https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz -o /tmp/rtk.tar.gz && tar xzf /tmp/rtk.tar.gz -C /usr/local/bin && rm /tmp/rtk.tar.gz",
 			)
+			console.info(rtkResult.stdout())
 			console.info(rtkResult.stderr())
 			if (!rtkResult.success) {
 				console.error("Failed to install rtk:")
@@ -234,11 +246,6 @@ async function main(): Promise<void> {
 				await sb.kill()
 				process.exit(1)
 			}
-
-			console.info("Updating pi packages...")
-			const piUpdateResult = await sb.exec("pi", ["update"])
-			console.info(piUpdateResult.stdout())
-			console.info(piUpdateResult.stderr())
 		}
 
 		console.info("Starting pi coding agent (Ctrl+] to detach)...\n")
