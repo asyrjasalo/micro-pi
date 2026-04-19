@@ -186,6 +186,7 @@ async function main(): Promise<void> {
 			console.info("Creating fresh sandbox...")
 			console.info("Installing git...")
 			const updateResult = await sb.exec("apt-get", ["update"])
+			console.info(updateResult.stderr())
 			if (!updateResult.success) {
 				console.error("Failed to update packages:")
 				console.error(updateResult.stderr())
@@ -202,6 +203,7 @@ async function main(): Promise<void> {
 				"fd-find",
 				"ripgrep",
 			])
+			console.info(gitResult.stderr())
 			if (!gitResult.success) {
 				console.error("Failed to install git:")
 				console.error(gitResult.stderr())
@@ -213,6 +215,7 @@ async function main(): Promise<void> {
 			const rtkResult = await sb.shell(
 				"curl -fsSL https://github.com/rtk-ai/rtk/releases/latest/download/rtk-aarch64-unknown-linux-gnu.tar.gz -o /tmp/rtk.tar.gz && tar xzf /tmp/rtk.tar.gz -C /usr/local/bin && rm /tmp/rtk.tar.gz",
 			)
+			console.info(rtkResult.stderr())
 			if (!rtkResult.success) {
 				console.error("Failed to install rtk:")
 				console.error(rtkResult.stderr())
@@ -224,6 +227,7 @@ async function main(): Promise<void> {
 				"-g",
 				"@mariozechner/pi-coding-agent",
 			])
+			console.info(installResult.stderr())
 			if (!installResult.success) {
 				console.error("Failed to install pi:")
 				console.error(installResult.stderr())
@@ -232,7 +236,9 @@ async function main(): Promise<void> {
 			}
 
 			console.info("Updating pi packages...")
-			await sb.exec("pi", ["update"])
+			const piUpdateResult = await sb.exec("pi", ["update"])
+			console.info(piUpdateResult.stdout())
+			console.info(piUpdateResult.stderr())
 		}
 
 		console.info("Starting pi coding agent (Ctrl+] to detach)...\n")
@@ -242,10 +248,20 @@ async function main(): Promise<void> {
 			env: envVars,
 		})
 
+		try {
+			await sb.stop()
+		} catch {
+			// sandbox may already be stopped
+		}
+
 		process.exit(exitCode)
 	} catch (err) {
 		console.error("Error:", err)
-		await sb.kill()
+		try {
+			await sb.stop()
+		} catch {
+			// not lifecycle owner
+		}
 		process.exit(1)
 	}
 }

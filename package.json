@@ -11,7 +11,6 @@
     "start": "bun run src/index.ts",
     "check": "biome check && tsc --noEmit && bun test",
     "reset": "bun run src/reset.ts",
-    "stop": "bun run src/stop.ts",
     "tsc": "tsc --noEmit",
     "lint": "biome check",
     "lint:fix": "biome check --write",
