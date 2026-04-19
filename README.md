@@ -1,4 +1,4 @@
-# msbox
+# micro-pi
 
 Run [Pi Coding Agent](https://github.com/mariozechner/pi-coding-agent) inside a [microsandbox](https://github.com/superradcompany/microsandbox) VM.
 
@@ -26,14 +26,16 @@ bun run reset
 bun run check
 ```
 
-On first run, msbox:
+On first run, micro-pi:
 
 1. Installs the microsandbox runtime (`~/.microsandbox/`)
 2. Creates a VM from `node:24-slim` (2 CPUs, 2 GiB RAM)
 3. Upgrades glibc from Debian trixie (required by [rtk](https://github.com/rtk-ai/rtk))
-4. Generates `en_US.UTF-8` locale
-5. Installs git, ripgrep, fd-find, ca-certificates, curl, locales, rtk, and pi coding agent inside the VM
-6. Copies your `~/.pi/agent/` config (settings, extensions, skills, themes, etc.) into the VM — symlinks are dereferenced
+4. Installs git, ripgrep, fd-find, ca-certificates, curl, locales inside the VM
+5. Symlinks `fdfind` → `/.pi/agent/bin/fd` (so Pi finds `fd` without downloading it)
+6. Generates `en_US.UTF-8` locale
+7. Installs [rtk](https://github.com/rtk-ai/rtk) and pi coding agent inside the VM
+8. Copies your `~/.pi/agent/` config (settings, extensions, skills, themes, etc.) into the VM — symlinks are dereferenced
 
 Subsequent runs reconnect to the existing sandbox (starts it if stopped). Pi config changes on the host require a `bun run reset` to take effect inside the VM.
 

@@ -218,7 +218,7 @@ async function main(): Promise<void> {
 
       console.info("Installing packages...")
       const setupResult = await sb.shell(
-        "apt-get update && apt-get install -y git ca-certificates curl fd-find ripgrep locales && sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8",
+        "apt-get update && apt-get install -y git ca-certificates curl fd-find ripgrep locales && mkdir -p /.pi/agent/bin && ln -sf /usr/bin/fdfind /.pi/agent/bin/fd && sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8",
       )
       if (!setupResult.success) {
         console.error("Failed to install packages:")

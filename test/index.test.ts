@@ -119,7 +119,7 @@ describe("buildPiPatches", () => {
   })
 
   it("creates guest .pi and .pi/agent dirs", () => {
-    const tmp = mkdtempSync(join(tmpdir(), "msbox-test-"))
+    const tmp = mkdtempSync(join(tmpdir(), "micro-pi-test-"))
     mkdirSync(join(tmp, ".pi/agent"), { recursive: true })
     writeFileSync(join(tmp, ".pi/agent/settings.json"), "{}")
     const patches = buildPiPatches(tmp)
@@ -130,7 +130,7 @@ describe("buildPiPatches", () => {
   })
 
   it("dereferences symlinks", () => {
-    const tmp = mkdtempSync(join(tmpdir(), "msbox-test-"))
+    const tmp = mkdtempSync(join(tmpdir(), "micro-pi-test-"))
     mkdirSync(join(tmp, ".pi/agent"), { recursive: true })
     mkdirSync(join(tmp, "real-config"), { recursive: true })
     writeFileSync(join(tmp, "real-config/settings.json"), '{"key": true}')
@@ -145,7 +145,7 @@ describe("buildPiPatches", () => {
   })
 
   it("copies directories", () => {
-    const tmp = mkdtempSync(join(tmpdir(), "msbox-test-"))
+    const tmp = mkdtempSync(join(tmpdir(), "micro-pi-test-"))
     mkdirSync(join(tmp, ".pi/agent/skills/my-skill"), { recursive: true })
     writeFileSync(
       join(tmp, ".pi/agent/skills/my-skill/instructions.md"),
@@ -158,7 +158,7 @@ describe("buildPiPatches", () => {
   })
 
   it("excludes OS-specific entries", () => {
-    const tmp = mkdtempSync(join(tmpdir(), "msbox-test-"))
+    const tmp = mkdtempSync(join(tmpdir(), "micro-pi-test-"))
     mkdirSync(join(tmp, ".pi/agent/sessions"), { recursive: true })
     mkdirSync(join(tmp, ".pi/agent/git"), { recursive: true })
     writeFileSync(join(tmp, ".pi/agent/mcp-cache.json"), "{}")

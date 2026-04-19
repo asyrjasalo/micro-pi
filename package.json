@@ -1,11 +1,11 @@
 {
-  "name": "msbox",
+  "name": "micro-pi",
   "version": "0.1.0",
   "description": "Run Pi Coding Agent in microsandbox",
   "type": "module",
   "main": "src/index.ts",
   "bin": {
-    "msbox": "src/index.ts"
+    "micro-pi": "src/index.ts"
   },
   "scripts": {
     "start": "bun run src/index.ts",
