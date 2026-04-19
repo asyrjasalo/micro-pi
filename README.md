@@ -30,16 +30,16 @@ On first run, msbox:
 
 1. Installs the microsandbox runtime (`~/.microsandbox/`)
 2. Creates a VM from `node:24-slim` (2 CPUs, 2 GiB RAM)
-3. Upgrades glibc to 2.41 from Debian trixie (required by [rtk](https://github.com/rtk-ai/rtk))
+3. Upgrades glibc from Debian trixie (required by [rtk](https://github.com/rtk-ai/rtk))
 4. Generates `en_US.UTF-8` locale
-5. Installs git, ripgrep, fd-find, rtk, and pi coding agent inside the VM
+5. Installs git, ripgrep, fd-find, ca-certificates, curl, locales, rtk, and pi coding agent inside the VM
 6. Copies your `~/.pi/agent/` config (settings, extensions, skills, themes, etc.) into the VM — symlinks are dereferenced
 
 Subsequent runs reconnect to the existing sandbox (starts it if stopped). Pi config changes on the host require a `bun run reset` to take effect inside the VM.
 
 ## What gets copied
 
-Files from `~/.pi/agent/` are copied into the sandbox on creation. Excluded:
+Files from `~/.pi/agent/` and root-level `~/.pi/` files (e.g. `web-search.json`) are copied into the sandbox on creation. Excluded:
 
 - `sessions/` — session history
 - `git/` — git state
@@ -49,15 +49,15 @@ Files from `~/.pi/agent/` are copied into the sandbox on creation. Excluded:
 
 Terminal and git env vars are forwarded into the sandbox:
 
-`TERM`, `COLORTERM`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`, `NO_COLOR`, `FORCE_COLOR`, `LANG`, `LC_ALL`, `EMAIL`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`
+`TERM`, `COLORTERM`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`, `NO_COLOR`, `FORCE_COLOR`, `LANG`, `LC_ALL`, `EMAIL`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`, `PI_RUN_CODE_UNSANDBOXED`
 
 Non-ASCII values are filtered out (microsandbox VMM limitation).
 
 ## API keys
 
-API keys are injected as microsandbox secrets — they never enter the VM as plaintext. Placeholder substitution happens at the network layer.
+API keys are passed into the sandbox as environment variables. At least one is required.
 
-| Key | Hosts |
-|-----|-------|
-| `ZAI_API_KEY` | all |
-| `MINIMAX_API_KEY` | all |
+| Key |
+|-----|
+| `ZAI_API_KEY` |
+| `MINIMAX_API_KEY` |
