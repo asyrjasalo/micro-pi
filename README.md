@@ -30,10 +30,12 @@ On first run, msbox:
 
 1. Installs the microsandbox runtime (`~/.microsandbox/`)
 2. Creates a VM from `node:24-slim` (2 CPUs, 2 GiB RAM)
-3. Installs pi coding agent globally inside the VM
-4. Copies your `~/.pi/agent/` config (settings, extensions, skills, themes, etc.) into the VM — symlinks are dereferenced
+3. Upgrades glibc to 2.41 from Debian trixie (required by [rtk](https://github.com/rtk-ai/rtk))
+4. Generates `en_US.UTF-8` locale
+5. Installs git, ripgrep, fd-find, rtk, and pi coding agent inside the VM
+6. Copies your `~/.pi/agent/` config (settings, extensions, skills, themes, etc.) into the VM — symlinks are dereferenced
 
-Subsequent runs reuse the existing sandbox. Pi config changes on the host require a `bun run reset` to take effect inside the VM.
+Subsequent runs reconnect to the existing sandbox (starts it if stopped). Pi config changes on the host require a `bun run reset` to take effect inside the VM.
 
 ## What gets copied
 
