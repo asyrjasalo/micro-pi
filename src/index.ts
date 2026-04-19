@@ -47,7 +47,7 @@ export function termEnv(
   }
   const result: Record<string, string> = {}
   for (const [k, v] of Object.entries(vars)) {
-    if (v && /^[\x20-\x7E]*$/.test(v)) result[k] = v
+    if (v) result[k] = v
   }
   return result
 }

@@ -57,6 +57,23 @@ describe("termEnv", () => {
       expect(v).toBeDefined()
     }
   })
+
+  it("passes non-ASCII values through", () => {
+    const env = termEnv({
+      TERM: "xterm",
+      GIT_AUTHOR_NAME: "Jöhn Müller",
+      EMAIL: "user@exämple.com",
+      LANG: "et_EE.UTF-8",
+    })
+    expect(env.GIT_AUTHOR_NAME).toBe("Jöhn Müller")
+    expect(env.EMAIL).toBe("user@exämple.com")
+    expect(env.LANG).toBe("et_EE.UTF-8")
+  })
+
+  it("passes emoji values through", () => {
+    const env = termEnv({ TERM: "xterm", COLORTERM: "🎨 truecolor" })
+    expect(env.COLORTERM).toBe("🎨 truecolor")
+  })
 })
 
 describe("buildSecrets", () => {

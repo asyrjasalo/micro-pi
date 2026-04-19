@@ -51,7 +51,7 @@ Terminal and git env vars are forwarded into the sandbox:
 
 `TERM`, `COLORTERM`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`, `NO_COLOR`, `FORCE_COLOR`, `LANG`, `LC_ALL`, `EMAIL`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`, `PI_RUN_CODE_UNSANDBOXED`
 
-Non-ASCII values are filtered out (microsandbox VMM limitation).
+Non-ASCII values are passed through as-is.
 
 ## API keys
 
