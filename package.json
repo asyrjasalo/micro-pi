@@ -10,7 +10,8 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "check": "biome check && tsc --noEmit && bun test",
-    "remove": "bun run src/remove.ts",
+    "reset": "bun run src/reset.ts",
+    "stop": "bun run src/stop.ts",
     "tsc": "tsc --noEmit",
     "lint": "biome check",
     "lint:fix": "biome check --write",

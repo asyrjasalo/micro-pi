@@ -236,7 +236,7 @@ describe("getOrCreateSandbox", () => {
 
 		expect(result.reused).toBe(true)
 		expect(startFn).toHaveBeenCalled()
-		expect(connectFn).not.toHaveBeenCalled()
+		expect(connectFn).toHaveBeenCalled()
 	})
 
 	it("creates new sandbox when get throws", async () => {

@@ -20,7 +20,7 @@ export ZAI_API_KEY=...
 bun start
 
 # Force fresh sandbox (removes existing)
-bun run remove
+bun run reset
 
 # Lint + typecheck + tests
 bun run check
@@ -33,7 +33,7 @@ On first run, msbox:
 3. Installs pi coding agent globally inside the VM
 4. Copies your `~/.pi/agent/` config (settings, extensions, skills, themes, etc.) into the VM — symlinks are dereferenced
 
-Subsequent runs reuse the existing sandbox. Pi config changes on the host require a `bun run remove` to take effect inside the VM.
+Subsequent runs reuse the existing sandbox. Pi config changes on the host require a `bun run reset` to take effect inside the VM.
 
 ## What gets copied
 

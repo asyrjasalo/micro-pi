@@ -119,10 +119,10 @@ export async function getOrCreateSandbox(
 ): Promise<GetOrCreateResult> {
 	try {
 		const handle = await Sandbox.get(name)
-		if (handle.status === "running") {
-			return { sb: await handle.connect(), reused: true }
+		if (handle.status === "stopped") {
+			await handle.start()
 		}
-		return { sb: await handle.start(), reused: true }
+		return { sb: await handle.connect(), reused: true }
 	} catch {
 		const sb = await Sandbox.create({
 			name,
@@ -247,13 +247,6 @@ async function main(): Promise<void> {
 		console.error("Error:", err)
 		await sb.kill()
 		process.exit(1)
-	} finally {
-		// Best-effort cleanup
-		try {
-			await sb.stop()
-		} catch {
-			// already stopped or killed
-		}
 	}
 }
 
