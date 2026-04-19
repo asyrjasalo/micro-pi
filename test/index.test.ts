@@ -58,21 +58,21 @@ describe("termEnv", () => {
     }
   })
 
-  it("passes non-ASCII values through", () => {
+  it("strips non-ASCII values to ASCII", () => {
     const env = termEnv({
       TERM: "xterm",
       GIT_AUTHOR_NAME: "Jöhn Müller",
       EMAIL: "user@exämple.com",
       LANG: "et_EE.UTF-8",
     })
-    expect(env.GIT_AUTHOR_NAME).toBe("Jöhn Müller")
-    expect(env.EMAIL).toBe("user@exämple.com")
+    expect(env.GIT_AUTHOR_NAME).toBe("J?hn M?ller")
+    expect(env.EMAIL).toBe("user@ex?mple.com")
     expect(env.LANG).toBe("et_EE.UTF-8")
   })
 
-  it("passes emoji values through", () => {
+  it("strips emoji values to ASCII", () => {
     const env = termEnv({ TERM: "xterm", COLORTERM: "🎨 truecolor" })
-    expect(env.COLORTERM).toBe("🎨 truecolor")
+    expect(env.COLORTERM).toBe("?? truecolor")
   })
 })
 

@@ -26,6 +26,10 @@ export const PI_AGENT_REL = ".pi/agent"
 
 export const PI_EXCLUDE = new Set(["sessions", "git", "mcp-cache.json"])
 
+export function asciiOnly(s: string): string {
+  return s.replace(/[^\x20-\x7E]/g, "?")
+}
+
 export function termEnv(
   env: Record<string, string | undefined> = process.env,
 ): Record<string, string> {
@@ -47,7 +51,7 @@ export function termEnv(
   }
   const result: Record<string, string> = {}
   for (const [k, v] of Object.entries(vars)) {
-    if (v) result[k] = v
+    if (v) result[k] = asciiOnly(v)
   }
   return result
 }
