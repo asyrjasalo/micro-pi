@@ -1,8 +1,10 @@
 # micro-pi
 
-Run [Pi Coding Agent](https://github.com/mariozechner/pi-coding-agent) inside a [microsandbox](https://github.com/superradcompany/microsandbox) VM.
+Run [Pi Coding Agent](https://github.com/mariozechner/pi-coding-agent) inside a
+[microsandbox](https://github.com/superradcompany/microsandbox) VM.
 
-The sandbox is reused across runs — no recreation unless you explicitly reset it. Your project directory is bind-mounted, so changes are live.
+The sandbox is reused across runs — no recreation unless you explicitly reset
+it. Your project directory is bind-mounted, so changes are live.
 
 ## Setup
 
@@ -20,28 +22,32 @@ export ZAI_API_KEY=...
 bun start
 
 # Force fresh sandbox (removes existing)
-bun run reset
+bun reset
 
 # Lint + typecheck + tests
-bun run check
+bun check
 ```
 
 On first run, micro-pi:
 
 1. Installs the microsandbox runtime (`~/.microsandbox/`)
 2. Creates a VM from `node:24-slim` (2 CPUs, 2 GiB RAM)
-3. Upgrades glibc from Debian trixie (required by [rtk](https://github.com/rtk-ai/rtk))
+3. Upgrades glibc (required by [rtk](https://github.com/rtk-ai/rtk))
 4. Installs git, ripgrep, fd-find, ca-certificates, curl, locales inside the VM
-5. Symlinks `fdfind` → `/.pi/agent/bin/fd` (so Pi finds `fd` without downloading it)
+5. Symlinks `fdfind` → `/.pi/agent/bin/fd` (so Pi finds `fd`)
 6. Generates `en_US.UTF-8` locale
-7. Installs [rtk](https://github.com/rtk-ai/rtk) and pi coding agent inside the VM
-8. Copies your `~/.pi/agent/` config (settings, extensions, skills, themes, etc.) into the VM — symlinks are dereferenced
+7. Installs [rtk](https://github.com/rtk-ai/rtk) and pi inside the VM
+8. Copies your `~/.pi/agent/` config (settings, extensions, skills, themes,
+   etc.) into the VM — symlinks are dereferenced
 
-Subsequent runs reconnect to the existing sandbox (starts it if stopped). Pi config changes on the host require a `bun run reset` to take effect inside the VM.
+Subsequent runs reconnect to the existing sandbox (starts it if stopped).
+Pi config changes on the host require a `bun run reset` to take effect
+inside the VM.
 
 ## What gets copied
 
-Files from `~/.pi/agent/` and root-level `~/.pi/` files (e.g. `web-search.json`) are copied into the sandbox on creation. Excluded:
+Files from `~/.pi/agent/` and root-level `~/.pi/` files (e.g. `web-search.json`)
+are copied into the sandbox on creation. Excluded:
 
 - `sessions/` — session history
 - `git/` — git state
@@ -51,13 +57,16 @@ Files from `~/.pi/agent/` and root-level `~/.pi/` files (e.g. `web-search.json`)
 
 Terminal and git env vars are forwarded into the sandbox:
 
-`TERM`, `COLORTERM`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`, `NO_COLOR`, `FORCE_COLOR`, `LANG`, `LC_ALL`, `EMAIL`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`, `PI_RUN_CODE_UNSANDBOXED`
+`TERM`, `COLORTERM`, `TERM_PROGRAM`, `TERM_PROGRAM_VERSION`, `NO_COLOR`,
+`FORCE_COLOR`, `LANG`, `LC_ALL`, `EMAIL`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`,
+`GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`, `PI_RUN_CODE_UNSANDBOXED`
 
 Non-ASCII values are passed through as-is.
 
 ## API keys
 
-API keys are passed into the sandbox as environment variables. At least one is required.
+API keys are passed into the sandbox as environment variables. At least one
+is required.
 
 | Key |
 |-----|
