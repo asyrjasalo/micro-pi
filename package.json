@@ -1,7 +1,7 @@
 {
   "name": "msbox",
   "version": "0.1.0",
-  "description": "Run pi coding agent in microsandbox",
+  "description": "Run Pi Coding Agent in microsandbox",
   "type": "module",
   "main": "src/index.ts",
   "bin": {

@@ -135,9 +135,6 @@ export async function getOrCreateSandbox(
 	if (existing) return existing
 
 	try {
-		const sb = await Sandbox.start(name)
-		return { sb, reused: true }
-	} catch {
 		const sb = await Sandbox.create({
 			name,
 			image,
@@ -152,6 +149,16 @@ export async function getOrCreateSandbox(
 			quietLogs: true,
 		})
 		return { sb, reused: false }
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e)
+		if (msg.includes("already exists")) {
+			const handle = await Sandbox.get(name)
+			if (handle.status === "stopped") {
+				await handle.start()
+			}
+			return { sb: await handle.connect(), reused: true }
+		}
+		throw e
 	}
 }
 
@@ -229,7 +236,7 @@ async function main(): Promise<void> {
 				console.error(rtkResult.stderr())
 			}
 
-			console.info("Installing pi coding agent...")
+			console.info("Installing Pi Coding Agent...")
 			const installResult = await sb.exec("npm", [
 				"install",
 				"-g",
@@ -244,7 +251,7 @@ async function main(): Promise<void> {
 			}
 		}
 
-		console.info("Starting pi coding agent (Ctrl+] to detach)...\n")
+		console.info("Starting Pi Coding Agent...\n")
 		const exitCode = await sb.attachWithConfig({
 			cmd: "pi",
 			cwd: GUEST_WORKDIR,

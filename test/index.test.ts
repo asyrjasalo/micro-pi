@@ -238,17 +238,32 @@ describe("getOrCreateSandbox", () => {
 		expect(startFn).not.toHaveBeenCalled()
 	})
 
-	it("starts stopped sandbox via Sandbox.start when get throws", async () => {
+	it("reconnects when create throws already exists", async () => {
 		const getFn = mock(() => Promise.reject(new Error("not found")))
+		const connectFn2 = mock(() => Promise.resolve("connected"))
+		const handleFn = {
+			status: "stopped",
+			start: mock(() => Promise.resolve()),
+			connect: connectFn2,
+		}
+		const createFn2 = mock()
+			.mockImplementationOnce(() =>
+				Promise.reject(new Error("sandbox 'x' already exists")),
+			)
+			.mockImplementationOnce(() => Promise.resolve("created"))
 
 		mock.module("microsandbox", () => ({
-			Sandbox: { get: getFn, start: startFn, create: createFn },
+			Sandbox: { get: getFn, start: startFn, create: createFn2 },
 			NetworkPolicy: { allowAll: () => ({}) },
 			Mount: { bind: (p: string) => p },
 		}))
 
+		getFn
+			.mockImplementationOnce(() => Promise.reject(new Error("not found")))
+			.mockImplementationOnce(() => Promise.resolve(handleFn))
+
 		const { getOrCreateSandbox, SANDBOX_NAME, SANDBOX_IMAGE } = await import(
-			"../src/index.ts?t=start-fallback"
+			"../src/index.ts?t=already-exists"
 		)
 		const result = await getOrCreateSandbox(
 			SANDBOX_NAME,
@@ -258,8 +273,8 @@ describe("getOrCreateSandbox", () => {
 		)
 
 		expect(result.reused).toBe(true)
-		expect(startFn).toHaveBeenCalledWith(SANDBOX_NAME)
-		expect(createFn).not.toHaveBeenCalled()
+		expect(handleFn.start).toHaveBeenCalled()
+		expect(connectFn2).toHaveBeenCalled()
 	})
 
 	it("creates new sandbox when get and start both throw", async () => {

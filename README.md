@@ -1,6 +1,6 @@
 # msbox
 
-Run [pi coding agent](https://github.com/mariozechner/pi-coding-agent) inside a [microsandbox](https://github.com/superradcompany/microsandbox) VM.
+Run [Pi Coding Agent](https://github.com/mariozechner/pi-coding-agent) inside a [microsandbox](https://github.com/superradcompany/microsandbox) VM.
 
 The sandbox is reused across runs — no recreation unless you explicitly reset it. Your project directory is bind-mounted, so changes are live.
 
